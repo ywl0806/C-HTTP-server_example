@@ -7,11 +7,11 @@
 #include <pthread.h>
 
 #define PORT 3031
-#define BUF_SIZE 100
+#define BUF_SIZE 4096
 #define MAX_CLIENT 256
 
 void error_handling(char *msg);
-void handle_http(void *arg);
+void *handle_http(void *arg);
 
 int client_cnt = 0;
 int client_socks[MAX_CLIENT];
@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
 	if (listen(serv_sock, 5))
 		error_handling("listen() error");
 
+	printf("listen on post : %d \n", PORT);
 	while (1)
 	{
 		client_addr_size = sizeof(client_addr);
@@ -60,13 +61,17 @@ void error_handling(char *msg)
 	exit(1);
 }
 
-void handle_http(void *args)
+void *handle_http(void *args)
 {
 	int client_sock = *((int *)args);
 	int str_len = 0;
-
+	char msg[BUF_SIZE];
+	printf("handle http req client socket: %d \n\n", client_sock);
 	// http요청을 처리
-
+	while ((str_len = read(client_sock, msg, sizeof(msg)) != 0))
+	{
+		printf("%s \n", msg);
+	}
 	pthread_mutex_lock(&mutex);
 	for (int i = 0; i < client_cnt; i++)
 	{
