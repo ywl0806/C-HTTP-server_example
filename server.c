@@ -5,13 +5,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include "http.h"
 
 #define PORT 3031
-#define BUF_SIZE 100
 #define MAX_CLIENT 256
 
 void error_handling(char *msg);
-void handle_http(void *arg);
+void handle_req(void *args);
 
 int client_cnt = 0;
 int client_socks[MAX_CLIENT];
@@ -44,12 +44,13 @@ int main(int argc, char *argv[])
 	{
 		client_addr_size = sizeof(client_addr);
 		client_sock = accept(serv_sock, (struct sockaddr *)&client_addr, &client_addr_size);
+		prinf("accept success sock: %d /n", serv_sock);
 
 		pthread_mutex_lock(&mutex);
 		client_socks[client_cnt++] = client_sock;
 		pthread_mutex_unlock(&mutex);
 
-		pthread_create(&thread_id, NULL, handle_http, (void *)&client_sock);
+		pthread_create(&thread_id, NULL, handle_req, (void *)&client_sock);
 	}
 }
 
@@ -60,11 +61,12 @@ void error_handling(char *msg)
 	exit(1);
 }
 
-void handle_http(void *args)
+void handle_req(void *args)
 {
 	int client_sock = *((int *)args);
 	int str_len = 0;
 
+	handle_http(client_sock);
 	// http요청을 처리
 
 	pthread_mutex_lock(&mutex);
@@ -81,5 +83,5 @@ void handle_http(void *args)
 	pthread_mutex_unlock(&mutex);
 	close(client_sock);
 
-	return NULL;
+	return;
 }
