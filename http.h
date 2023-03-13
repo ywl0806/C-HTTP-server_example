@@ -1,1 +1,1 @@
-void handle_http(int sock);
+int handle_http(int sock);

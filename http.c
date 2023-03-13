@@ -9,27 +9,42 @@
 #define HEADER_FMT "HTTP/1.1 %d %s\nContent-Length: %ld\nContent-Type: %s\n\n"
 #define BASE_STATIC_PATH "/static";
 #define BUF_SIZE 4096
+#define KEEP_ALIVE "keep-alive"
 
 void handle_error(int sock, int err_code);
-void handle_500(int sock);
-void fill_response(char *header, int status, long len, char *type);
+void fill_header(char *header, int status, long len, char *type);
 void find_type(char *ct_type, char *uri);
 
-void handle_http(int sock)
+int handle_http(int sock)
 {
-    char req[BUF_SIZE];
-    char res[BUF_SIZE];
+    char buffer[BUF_SIZE];
+    char header[BUF_SIZE];
 
     int str_len;
 
-    if ((read(sock, req, BUF_SIZE)) < 0)
+    if ((read(sock, buffer, BUF_SIZE)) < 0)
     {
         perror("[error] Failed to read request. \n");
     }
 
-    printf("%s \n", req);
-    char *method = strtok(req, " ");
+    char *method = strtok(buffer, " ");
     char *uri = strtok(NULL, " ");
+
+    strtok(NULL, "\n");
+    strtok(NULL, " ");
+    char *host = strtok(NULL, "\n");
+    strtok(NULL, " ");
+    char *connection = strtok(NULL, "\n");
+
+    if (method == NULL || uri == NULL || host == NULL || connection == NULL)
+    {
+        perror("[ERR] Failed to identify method, URI.\n");
+        handle_error(sock, 500);
+        return 1;
+    }
+
+    char conet[20];
+    strcpy(conet, connection);
 
     printf("[info] Handling Request %s  %s \n", method, uri);
 
@@ -41,13 +56,12 @@ void handle_http(int sock)
         strcpy(uri, "/index.html");
     strcat(safe_uri, uri);
 
-    printf("uri : %s \n", uri);
     local_uri = safe_uri + 1;
     if (stat(local_uri, &st) < 0)
     {
         perror("[WARN] No file found matching URI.\n");
         handle_error(sock, 404);
-        return;
+        return 1;
     }
 
     int fd = open(local_uri, O_RDONLY);
@@ -55,36 +69,37 @@ void handle_http(int sock)
     {
         perror("[ERR] Failed to open file.\n");
         handle_error(sock, 500);
-        return;
+        return 1;
     }
 
     int ct_len = st.st_size;
     char ct_type[40];
     find_type(ct_type, local_uri);
-    fill_response(res, 200, ct_len, ct_type);
-    printf("res : %s \n", res);
+    fill_header(header, 200, ct_len, ct_type);
 
-    write(sock, res, strlen(res));
+    write(sock, header, strlen(header));
 
     int cnt;
-    while ((cnt = read(fd, req, BUF_SIZE)) > 0)
-        write(sock, req, cnt);
+    while ((cnt = read(fd, buffer, BUF_SIZE)) > 0)
+        write(sock, buffer, cnt);
+
+    return strncmp(KEEP_ALIVE, conet, 10);
 }
 
 void handle_error(int sock, int err_code)
 {
-    char res[BUF_SIZE];
+    char header[BUF_SIZE];
     struct stat st;
     char local_url[40];
 
     sprintf(local_url, "static/%d.html", err_code);
     stat(local_url, &st);
-    fill_response(res, err_code, st.st_size, "text/html");
+    fill_header(header, err_code, st.st_size, "text/html");
 
-    write(sock, res, strlen(res));
+    write(sock, header, strlen(header));
 }
 
-void fill_response(char *header, int status, long len, char *type)
+void fill_header(char *header, int status, long len, char *type)
 {
     char status_text[40];
     switch (status)
@@ -102,19 +117,19 @@ void fill_response(char *header, int status, long len, char *type)
     }
     sprintf(header, HEADER_FMT, status, status_text, len, type);
 }
-void find_type(char *ct_type, char *uri)
+void find_type(char *type, char *uri)
 {
     char *ext = strrchr(uri, '.');
     if (!strcmp(ext, ".html"))
-        strcpy(ct_type, "text/html");
+        strcpy(type, "text/html");
     else if (!strcmp(ext, ".jpg") || !strcmp(ext, ".jpeg"))
-        strcpy(ct_type, "image/jpeg");
+        strcpy(type, "image/jpeg");
     else if (!strcmp(ext, ".png"))
-        strcpy(ct_type, "image/png");
+        strcpy(type, "image/png");
     else if (!strcmp(ext, ".css"))
-        strcpy(ct_type, "text/css");
+        strcpy(type, "text/css");
     else if (!strcmp(ext, ".js"))
-        strcpy(ct_type, "text/javascript");
+        strcpy(type, "text/javascript");
     else
-        strcpy(ct_type, "text/plain");
+        strcpy(type, "text/plain");
 }
