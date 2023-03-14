@@ -91,12 +91,23 @@ void handle_error(int sock, int err_code)
     char header[BUF_SIZE];
     struct stat st;
     char local_url[40];
+    char buffer[BUF_SIZE];
 
     sprintf(local_url, "static/%d.html", err_code);
     stat(local_url, &st);
     fill_header(header, err_code, st.st_size, "text/html");
-
+    // 헤더 채우기
     write(sock, header, strlen(header));
+    printf("handle error %d \n\n", err_code);
+    int fd = open(local_url, O_RDONLY);
+    if (fd < 0)
+        return;
+
+    int cnt;
+    while ((cnt = read(fd, buffer, BUF_SIZE)) > 0)
+        write(sock, buffer, cnt);
+
+    return;
 }
 
 void fill_header(char *header, int status, long len, char *type)
